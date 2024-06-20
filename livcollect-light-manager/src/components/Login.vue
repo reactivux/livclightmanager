@@ -5,9 +5,19 @@
         <h2>Se connecter</h2>
       </div>
       <div class="card-body">
+        <div v-if="alertMessage" :class="`alert ${alertClass}`" role="alert">
+          <i class="bi bi-exclamation-circle-fill"></i>
+          {{ alertMessage }}
+        </div>
         <form @submit.prevent="login">
           <div class="mb-3">
-            <input type="email" v-model="email" class="custom-input" placeholder="Email" @input="validateEmail" />
+            <input
+              type="email"
+              v-model="email"
+              class="custom-input"
+              placeholder="Email"
+              @input="validateEmail"
+            />
             <p v-if="emailError" class="error-message">{{ emailError }}</p>
           </div>
           <div class="mb-3">
@@ -30,6 +40,9 @@
 
 <script lang="ts">
 import { defineComponent, ref } from 'vue';
+import { useRouter } from 'vue-router'; // Import useRouter
+import { useAuthStore } from '../stores/auth';
+import { signin } from '../api';
 
 export default defineComponent({
   setup() {
@@ -37,6 +50,11 @@ export default defineComponent({
     const password = ref('');
     const emailError = ref('');
     const passwordError = ref('');
+    const alertMessage = ref('');
+    const alertClass = ref('');
+
+    const authStore = useAuthStore();
+    const router = useRouter(); // Initialize useRouter
 
     const validateEmail = () => {
       if (!email.value) {
@@ -58,15 +76,29 @@ export default defineComponent({
       }
     };
 
-    const login = () => {
+    const login = async () => {
       validateEmail();
       validatePassword();
 
       if (!emailError.value && !passwordError.value) {
-        // proceed with login logic
-        console.log('Login successful');
+        try {
+          const response = await signin(email.value, password.value);
+          if (response.data.roles.includes("admin")) {
+            authStore.setAuthData(response.accessToken, response.data.uuid);
+            alertClass.value = 'alert-success';
+            alertMessage.value = 'Login successful';
+            router.push({ name: 'Orders' }); // Redirect to Orders.vue
+          } else {
+            alertClass.value = 'alert-danger';
+            alertMessage.value = 'User does not have admin role';
+          }
+        } catch (error) {
+          alertClass.value = 'alert-danger';
+          alertMessage.value = error.message;
+        }
       } else {
-        console.log('Validation errors');
+        alertClass.value = 'alert-danger';
+        alertMessage.value = 'Validation errors';
       }
     };
 
@@ -75,6 +107,8 @@ export default defineComponent({
       password,
       emailError,
       passwordError,
+      alertMessage,
+      alertClass,
       login,
       validateEmail,
       validatePassword,
@@ -88,6 +122,16 @@ export default defineComponent({
   color: red;
   font-size: 0.875rem;
   margin-top: 0.25rem;
+}
+.alert {
+  display: flex;
+  align-items: center;
+  font-size: 1rem;
+  margin-bottom: 1rem;
+}
+.alert .bi {
+  margin-right: 0.5rem;
+  font-size: 1.5rem;
 }
 .btn:focus,
 .btn:active {
