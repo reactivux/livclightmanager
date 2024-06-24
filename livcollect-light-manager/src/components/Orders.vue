@@ -1,5 +1,6 @@
 <template>
   <div>
+    <!-- Navbar and Tabs -->
     <nav class="navbar">
       <img src="../assets/logo-liv.png" alt="Logo" class="logo" />
       <div class="profile">
@@ -7,81 +8,44 @@
       </div>
     </nav>
     <div class="status-tabs d-flex justify-content-center my-3">
-      <div
-        class="tab px-3 py-2 mx-1"
-        :class="{ active: selectedTab === 'new' }"
-        @click="selectTab('new')"
-      >
+      <div class="tab px-3 py-2 mx-1" :class="{ active: selectedTab === 'new' }" @click="selectTab('new')">
         <span>Nouvelles commandes</span>
         <span class="badge">{{ counts.new }}</span>
       </div>
-      <div
-        class="tab px-3 py-2 mx-1"
-        :class="{ active: selectedTab === 'in-preparation' }"
-        @click="selectTab('in-preparation')"
-      >
+      <div class="tab px-3 py-2 mx-1" :class="{ active: selectedTab === 'in-preparation' }" @click="selectTab('in-preparation')">
         <span>En préparation</span>
         <span class="badge">{{ counts.inPreparation }}</span>
       </div>
-      <div
-        class="tab px-3 py-2 mx-1"
-        :class="{ active: selectedTab === 'delivered' }"
-        @click="selectTab('delivered')"
-      >
+      <div class="tab px-3 py-2 mx-1" :class="{ active: selectedTab === 'delivered' }" @click="selectTab('delivered')">
         <span>Livrée</span>
         <span class="badge">{{ counts.delivered }}</span>
       </div>
-      <div
-        class="tab px-3 py-2 mx-1"
-        :class="{ active: selectedTab === 'scheduled' }"
-        @click="selectTab('scheduled')"
-      >
+      <div class="tab px-3 py-2 mx-1" :class="{ active: selectedTab === 'scheduled' }" @click="selectTab('scheduled')">
         <span>Programmée</span>
         <span class="badge">{{ counts.scheduled }}</span>
       </div>
-      <div
-        class="tab px-3 py-2 mx-1"
-        :class="{ active: selectedTab === 'history' }"
-        @click="selectTab('history')"
-      >
+      <div class="tab px-3 py-2 mx-1" :class="{ active: selectedTab === 'history' }" @click="selectTab('history')">
         <span>Historique</span>
         <span class="badge">{{ counts.history }}</span>
       </div>
     </div>
+
+    <!-- Orders Table -->
     <div class="orders-table">
       <div class="table-header d-flex justify-content-between align-items-center">
         <h3 class="mb-0">LISTE DES COMMANDES</h3>
         <div class="impression-options">
           <span>Impression :</span>
           <div class="form-check form-check-inline">
-            <input
-              class="form-check-input"
-              type="radio"
-              name="impressionOptions"
-              id="impressionDesactivee"
-              value="desactivee"
-              checked
-            />
+            <input class="form-check-input" type="radio" name="impressionOptions" id="impressionDesactivee" value="desactivee" checked />
             <label class="form-check-label" for="impressionDesactivee">Désactivée</label>
           </div>
           <div class="form-check form-check-inline">
-            <input
-              class="form-check-input"
-              type="radio"
-              name="impressionOptions"
-              id="impressionNormale"
-              value="normale"
-            />
+            <input class="form-check-input" type="radio" name="impressionOptions" id="impressionNormale" value="normale" />
             <label class="form-check-label" for="impressionNormale">Normale</label>
           </div>
           <div class="form-check form-check-inline">
-            <input
-              class="form-check-input"
-              type="radio"
-              name="impressionOptions"
-              id="impressionMultiple"
-              value="multiple"
-            />
+            <input class="form-check-input" type="radio" name="impressionOptions" id="impressionMultiple" value="multiple" />
             <label class="form-check-label" for="impressionMultiple">Multiple</label>
           </div>
         </div>
@@ -112,11 +76,8 @@
       </table>
     </div>
 
-    <AcceptDialog
-      :visible="isAcceptDialogVisible"
-      @confirm="acceptOrder"
-      @cancel="isAcceptDialogVisible = false"
-    />
+    <!-- Accept Dialog Component -->
+    <AcceptDialog :visible="isAcceptDialogVisible" @confirm="acceptOrder" @cancel="isAcceptDialogVisible = false" />
   </div>
 </template>
 
@@ -124,21 +85,8 @@
 import { defineComponent, ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { getOrders } from '../api'
 import AcceptDialog from './AcceptDialog.vue'
+import type { Order, RootObject } from '../models/orders.interface'
 
-interface Customer {
-  firstName: string
-  lastName: string
-}
-
-interface Order {
-  id: number
-  created_at: string
-  customer: Customer
-  type: string
-  total_amount: number
-  status?: string
-  planified?: number
-}
 
 export default defineComponent({
   name: 'Orders',
@@ -163,15 +111,15 @@ export default defineComponent({
     const fetchOrders = async () => {
       try {
         const response = await getOrders()
-        const { pending, accepted, delivered } = response.data
+        const data: RootObject = response.data
 
-        orders.value = [...pending.CAC, ...accepted.CAC, ...delivered.CAC]
+        orders.value = [...data.pending.CAC, ...data.accepted.CAC, ...data.delivered.CAC]
 
-        counts.value.new = pending.CAC.length
-        counts.value.inPreparation = accepted.CAC.length
-        counts.value.delivered = delivered.CAC.length
-        counts.value.scheduled = pending.CAC.filter((order: Order) => order.planified === 1).length
-        counts.value.history = delivered.CAC.length
+        counts.value.new = data.pending.CAC.length
+        counts.value.inPreparation = data.accepted.CAC.length
+        counts.value.delivered = data.delivered.CAC.length
+        counts.value.scheduled = data.pending.CAC.filter((order: Order) => order.planified).length
+        counts.value.history = data.delivered.CAC.length
       } catch (error) {
         console.error('Error fetching orders:', error)
       }
@@ -179,15 +127,15 @@ export default defineComponent({
 
     const filteredOrders = computed(() => {
       if (selectedTab.value === 'new')
-        return orders.value.filter((order) => order.status === 'pending' && order.planified === 0)
+        return orders.value.filter(order => order.status === 'pending' && !order.planified)
       if (selectedTab.value === 'in-preparation')
-        return orders.value.filter((order) => order.status === 'in-preparation')
+        return orders.value.filter(order => order.status === 'accepted')
       if (selectedTab.value === 'delivered')
-        return orders.value.filter((order) => order.status === 'delivered')
+        return orders.value.filter(order => order.status === 'delivered')
       if (selectedTab.value === 'scheduled')
-        return orders.value.filter((order) => order.planified === 1)
+        return orders.value.filter(order => order.planified)
       if (selectedTab.value === 'history')
-        return orders.value.filter((order) => order.status === 'delivered')
+        return orders.value.filter(order => order.status === 'delivered')
       return []
     })
 
