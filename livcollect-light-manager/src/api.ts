@@ -53,11 +53,25 @@ export async function getOrders() {
     if (!uuid) {
       throw new Error('UUID is missing from local storage');
     }
-    const response = await apiClient.get(`/orders/${uuid}`);
+    const response = await apiClient.get(`/orders/unstructured/${uuid}`);
     console.log('API Response:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error fetching orders:', error);
+    throw error;
+  }
+}
+// Get Historical Orders with Pagination
+export async function getHistoricalOrders(page: number) {
+  try {
+    const uuid = localStorage.getItem('uuid');
+    if (!uuid) {
+      throw new Error('UUID is missing from local storage');
+    }
+    const response = await apiClient.get(`/historiques-orders/${uuid}?page=${page}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching historical orders:', error);
     throw error;
   }
 }
