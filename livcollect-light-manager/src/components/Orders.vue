@@ -31,14 +31,6 @@
         <span>Livrée</span>
         <span class="badge">{{ counts.delivered }}</span>
       </div>
-      <div
-        class="tab px-3 py-2 mx-1"
-        :class="{ active: selectedTab === 'history' }"
-        @click="selectTab('history')"
-      >
-        <span>Historique</span>
-        <span class="badge">{{ counts.history }}</span>
-      </div>
     </div>
     <div class="orders-table">
       <div class="table-header d-flex justify-content-between align-items-center">
@@ -91,7 +83,7 @@
             <th>Action</th>
           </tr>
         </thead>
-        <thead class="bg-primary text-white" v-if="selectedTab === 'delivered' || selectedTab === 'history'">
+        <thead class="bg-primary text-white" v-if="selectedTab === 'delivered'">
           <tr>
             <th>Order N°</th>
             <th>Date</th>
@@ -103,7 +95,7 @@
         </thead>
         <tbody v-if="selectedTab === 'new'">
           <tr v-for="order in filteredOrders" :key="order.id">
-            <td><button class="btn btn-danger">Annuler</button></td>
+            <td><button class="btn btn-danger" @click="cancelOrder(order.id)">Annuler</button></td>
             <td>{{ order.id }}</td>
             <td>{{ order.created_at }}</td>
             <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
@@ -115,7 +107,7 @@
         </tbody>
         <tbody v-if="selectedTab === 'in-preparation'">
           <tr v-for="order in filteredOrders" :key="order.id">
-            <td><button class="btn btn-danger">Annuler</button></td>
+            <td><button class="btn btn-danger" @click="cancelOrder(order.id)">Annuler</button></td>
             <td>{{ order.id }}</td>
             <td>{{ order.created_at }}</td>
             <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
@@ -135,16 +127,6 @@
             <td>{{ order.total_amount }} €</td>
           </tr>
         </tbody>
-        <tbody v-if="selectedTab === 'history'">
-          <tr v-for="order in filteredOrders" :key="order.id">
-            <td>{{ order.id }}</td>
-            <td>{{ order.created_at }}</td>
-            <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
-            <td><span class="badge badge-success">{{ order.type }}</span></td>
-            <td>{{ order.planified ? 'Oui' : 'Non' }}</td>
-            <td>{{ order.total_amount }} €</td>
-          </tr>
-        </tbody>
       </table>
     </div>
 
@@ -153,18 +135,24 @@
       @confirm="acceptOrder"
       @cancel="isAcceptDialogVisible = false"
     />
+    <SuccessMessage
+      :visible="isSuccessMessageVisible"
+      :orderId="safeCurrentOrderId"
+      @ok="isSuccessMessageVisible = false"
+    />
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, ref, onMounted, onBeforeUnmount, computed } from 'vue';
-import { getOrders } from '../api';
+import { getOrders, updateOrderStatus } from '../api';
 import AcceptDialog from './AcceptDialog.vue';
+import SuccessMessage from './SuccessMessage.vue';
 import type { Order } from '../models/order.interface';
 
 export default defineComponent({
   name: 'Orders',
-  components: { AcceptDialog },
+  components: { AcceptDialog, SuccessMessage },
   setup() {
     const selectedTab = ref<string>('new');
     const orders = ref<Order[]>([]);
@@ -176,7 +164,11 @@ export default defineComponent({
       history: 0
     });
     const isAcceptDialogVisible = ref(false);
+    const isSuccessMessageVisible = ref(false);
     const currentOrder = ref<Order | null>(null);
+    const currentOrderId = ref<number | null>(null);
+
+    const safeCurrentOrderId = computed(() => currentOrderId.value || 0);
 
     const selectTab = (tab: string) => {
       selectedTab.value = tab;
@@ -192,7 +184,6 @@ export default defineComponent({
         counts.value.new = data.filter((order: Order) => order.status === 'pending').length;
         counts.value.inPreparation = data.filter((order: Order) => order.status === 'accepted').length;
         counts.value.delivered = data.filter((order: Order) => order.status === 'delivered').length;
-        counts.value.history = data.filter((order: Order) => order.status === 'delivered').length;
       } catch (error) {
         console.error('Error fetching orders:', error);
       }
@@ -208,9 +199,6 @@ export default defineComponent({
       if (selectedTab.value === 'delivered') {
         return orders.value.filter(order => order.status === 'delivered');
       }
-      if (selectedTab.value === 'history') {
-        return orders.value.filter(order => order.status === 'delivered');
-      }
       return [];
     });
 
@@ -219,11 +207,26 @@ export default defineComponent({
       isAcceptDialogVisible.value = true;
     };
 
-    const acceptOrder = () => {
+    const acceptOrder = async () => {
       if (currentOrder.value) {
-        // Perform the order acceptance logic here
-        console.log('Order accepted:', currentOrder.value.id);
-        isAcceptDialogVisible.value = false;
+        try {
+          await updateOrderStatus(currentOrder.value.id, 'accepted');
+          currentOrderId.value = currentOrder.value.id;
+          isAcceptDialogVisible.value = false;
+          isSuccessMessageVisible.value = true;
+          fetchOrders(); // Refresh the orders list
+        } catch (error) {
+          console.error('Error accepting order:', error);
+        }
+      }
+    };
+
+    const cancelOrder = async (orderId: number) => {
+      try {
+        await updateOrderStatus(orderId, 'canceled');
+        fetchOrders(); // Refresh the orders list
+      } catch (error) {
+        console.error('Error canceling order:', error);
       }
     };
 
@@ -239,8 +242,11 @@ export default defineComponent({
       counts,
       filteredOrders,
       isAcceptDialogVisible,
+      isSuccessMessageVisible,
+      safeCurrentOrderId,
       showAcceptDialog,
-      acceptOrder
+      acceptOrder,
+      cancelOrder
     };
   }
 });
@@ -331,6 +337,29 @@ export default defineComponent({
 }
 
 .btn-accept:active {
+  transform: scale(0.95);
+}
+
+.btn-danger {
+  display: block;
+  width: 100px;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: #e74c3c;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.3s, transform 0.3s;
+}
+
+.btn-danger:hover {
+  background-color: #c0392b;
+}
+
+.btn-danger:active {
   transform: scale(0.95);
 }
 </style>
