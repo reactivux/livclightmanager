@@ -75,3 +75,20 @@ export async function getHistoricalOrders(page: number) {
     throw error;
   }
 }
+export async function updateOrderStatus(orderId: number, status: string) {
+  try {
+    const uuid = localStorage.getItem('uuid');
+    if (!uuid) {
+      throw new Error('UUID is missing from local storage');
+    }
+    const response = await apiClient.post(`/orders/${uuid}/status`, {
+      order_id: orderId,
+      status: status,
+    });
+    console.log('API Response:', response.data);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    throw error;
+  }
+}

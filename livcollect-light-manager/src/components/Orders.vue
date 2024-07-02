@@ -31,6 +31,14 @@
         <span>Livrée</span>
         <span class="badge">{{ counts.delivered }}</span>
       </div>
+      <div
+        class="tab px-3 py-2 mx-1"
+        :class="{ active: selectedTab === 'history' }"
+        @click="selectTab('history')"
+      >
+        <span>Historique</span>
+        <span class="badge">{{ counts.history }}</span>
+      </div>
     </div>
     <div class="orders-table">
       <div class="table-header d-flex justify-content-between align-items-center">
@@ -83,7 +91,7 @@
             <th>Action</th>
           </tr>
         </thead>
-        <thead class="bg-primary text-white" v-if="selectedTab === 'delivered'">
+        <thead class="bg-primary text-white" v-if="selectedTab === 'delivered' || selectedTab === 'history'">
           <tr>
             <th>Order N°</th>
             <th>Date</th>
@@ -118,6 +126,16 @@
           </tr>
         </tbody>
         <tbody v-if="selectedTab === 'delivered'">
+          <tr v-for="order in filteredOrders" :key="order.id">
+            <td>{{ order.id }}</td>
+            <td>{{ order.created_at }}</td>
+            <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
+            <td><span class="badge badge-success">{{ order.type }}</span></td>
+            <td>{{ order.planified ? 'Oui' : 'Non' }}</td>
+            <td>{{ order.total_amount }} €</td>
+          </tr>
+        </tbody>
+        <tbody v-if="selectedTab === 'history'">
           <tr v-for="order in filteredOrders" :key="order.id">
             <td>{{ order.id }}</td>
             <td>{{ order.created_at }}</td>
@@ -174,6 +192,7 @@ export default defineComponent({
         counts.value.new = data.filter((order: Order) => order.status === 'pending').length;
         counts.value.inPreparation = data.filter((order: Order) => order.status === 'accepted').length;
         counts.value.delivered = data.filter((order: Order) => order.status === 'delivered').length;
+        counts.value.history = data.filter((order: Order) => order.status === 'delivered').length;
       } catch (error) {
         console.error('Error fetching orders:', error);
       }
@@ -187,6 +206,9 @@ export default defineComponent({
         return orders.value.filter(order => order.status === 'accepted');
       }
       if (selectedTab.value === 'delivered') {
+        return orders.value.filter(order => order.status === 'delivered');
+      }
+      if (selectedTab.value === 'history') {
         return orders.value.filter(order => order.status === 'delivered');
       }
       return [];
