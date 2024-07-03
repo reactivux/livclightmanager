@@ -3,7 +3,7 @@
     <div class="dialog-box">
       <div class="dialog-content">
         <h3>Êtes-vous sûr ?</h3>
-        <p>Cette commande sera acceptée</p>
+        <p>Cette commande sera {{ actionType === 'accept' ? 'acceptée' : actionType === 'cancel' ? 'annulée' : 'livrée' }}</p>
         <div class="dialog-actions">
           <button @click="onConfirm" class="btn btn-primary">Oui</button>
           <button @click="onCancel" class="btn btn-secondary">Annuler</button>
@@ -21,6 +21,10 @@ export default defineComponent({
   props: {
     visible: {
       type: Boolean,
+      required: true
+    },
+    actionType: {
+      type: String,
       required: true
     }
   },

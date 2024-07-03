@@ -95,7 +95,7 @@
         </thead>
         <tbody v-if="selectedTab === 'new'">
           <tr v-for="order in filteredOrders" :key="order.id">
-            <td><button class="btn btn-danger" @click="cancelOrder(order.id)">Annuler</button></td>
+            <td><button class="btn btn-danger" @click="showCancelDialog(order)">Annuler</button></td>
             <td>{{ order.id }}</td>
             <td>{{ order.created_at }}</td>
             <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
@@ -107,14 +107,14 @@
         </tbody>
         <tbody v-if="selectedTab === 'in-preparation'">
           <tr v-for="order in filteredOrders" :key="order.id">
-            <td><button class="btn btn-danger" @click="cancelOrder(order.id)">Annuler</button></td>
+            <td><button class="btn btn-danger" @click="showCancelDialog(order)">Annuler</button></td>
             <td>{{ order.id }}</td>
             <td>{{ order.created_at }}</td>
             <td>{{ order.customer.firstName }} {{ order.customer.lastName }}</td>
             <td><span class="badge badge-success">{{ order.type }}</span></td>
             <td>{{ order.planified ? 'Oui' : 'Non' }}</td>
             <td>{{ order.total_amount }} €</td>
-            <td><button class="btn btn-accept" @click="showAcceptDialog(order)">Livrer</button></td>
+            <td><button class="btn btn-accept" @click="showDeliverDialog(order)">Livrer</button></td>
           </tr>
         </tbody>
         <tbody v-if="selectedTab === 'delivered'">
@@ -132,14 +132,17 @@
 
     <AcceptDialog
       :visible="isAcceptDialogVisible"
-      @confirm="acceptOrder"
+      :actionType="actionType"
+      @confirm="confirmAction"
       @cancel="isAcceptDialogVisible = false"
     />
-    <SuccessMessage
-      :visible="isSuccessMessageVisible"
-      :orderId="safeCurrentOrderId"
-      @ok="isSuccessMessageVisible = false"
-    />
+
+    <div v-if="isSuccessMessageVisible" class="success-message-overlay">
+      <div class="success-message-box">
+        <p>{{ successMessage }}</p>
+        <button @click="isSuccessMessageVisible = false" class="btn">OK</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -147,12 +150,11 @@
 import { defineComponent, ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { getOrders, updateOrderStatus } from '../api';
 import AcceptDialog from './AcceptDialog.vue';
-import SuccessMessage from './SuccessMessage.vue';
 import type { Order } from '../models/order.interface';
 
 export default defineComponent({
   name: 'Orders',
-  components: { AcceptDialog, SuccessMessage },
+  components: { AcceptDialog },
   setup() {
     const selectedTab = ref<string>('new');
     const orders = ref<Order[]>([]);
@@ -165,10 +167,10 @@ export default defineComponent({
     });
     const isAcceptDialogVisible = ref(false);
     const isSuccessMessageVisible = ref(false);
+    const successMessage = ref<string>('');
     const currentOrder = ref<Order | null>(null);
+    const actionType = ref<string>('');
     const currentOrderId = ref<number | null>(null);
-
-    const safeCurrentOrderId = computed(() => currentOrderId.value || 0);
 
     const selectTab = (tab: string) => {
       selectedTab.value = tab;
@@ -204,29 +206,44 @@ export default defineComponent({
 
     const showAcceptDialog = (order: Order) => {
       currentOrder.value = order;
+      actionType.value = 'accept';
+      currentOrderId.value = order.id;
       isAcceptDialogVisible.value = true;
     };
 
-    const acceptOrder = async () => {
-      if (currentOrder.value) {
-        try {
-          await updateOrderStatus(currentOrder.value.id, 'accepted');
-          currentOrderId.value = currentOrder.value.id;
-          isAcceptDialogVisible.value = false;
-          isSuccessMessageVisible.value = true;
-          fetchOrders(); // Refresh the orders list
-        } catch (error) {
-          console.error('Error accepting order:', error);
-        }
-      }
+    const showCancelDialog = (order: Order) => {
+      currentOrder.value = order;
+      actionType.value = 'cancel';
+      currentOrderId.value = order.id;
+      isAcceptDialogVisible.value = true;
     };
 
-    const cancelOrder = async (orderId: number) => {
-      try {
-        await updateOrderStatus(orderId, 'canceled');
-        fetchOrders(); // Refresh the orders list
-      } catch (error) {
-        console.error('Error canceling order:', error);
+    const showDeliverDialog = (order: Order) => {
+      currentOrder.value = order;
+      actionType.value = 'deliver';
+      currentOrderId.value = order.id;
+      isAcceptDialogVisible.value = true;
+    };
+
+    const confirmAction = async () => {
+      if (currentOrder.value && currentOrderId.value) {
+        isAcceptDialogVisible.value = false;
+        try {
+          if (actionType.value === 'accept') {
+            await updateOrderStatus(currentOrderId.value, 'accepted');
+            successMessage.value = `Commande n° ${currentOrderId.value} est acceptée avec succès.`;
+          } else if (actionType.value === 'cancel') {
+            await updateOrderStatus(currentOrderId.value, 'canceled');
+            successMessage.value = `Commande n° ${currentOrderId.value} est annulée avec succès.`;
+          } else if (actionType.value === 'deliver') {
+            await updateOrderStatus(currentOrderId.value, 'delivered');
+            successMessage.value = `Commande n° ${currentOrderId.value} est livrée avec succès.`;
+          }
+          isSuccessMessageVisible.value = true;
+          fetchOrders();
+        } catch (error) {
+          console.error('Error updating order status:', error);
+        }
       }
     };
 
@@ -243,10 +260,11 @@ export default defineComponent({
       filteredOrders,
       isAcceptDialogVisible,
       isSuccessMessageVisible,
-      safeCurrentOrderId,
+      successMessage,
       showAcceptDialog,
-      acceptOrder,
-      cancelOrder
+      showCancelDialog,
+      showDeliverDialog,
+      confirmAction
     };
   }
 });
@@ -340,26 +358,33 @@ export default defineComponent({
   transform: scale(0.95);
 }
 
-.btn-danger {
-  display: block;
-  width: 100px;
-  padding: 10px;
-  margin: 10px 0;
-  background-color: #e74c3c;
+.success-message-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.success-message-box {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.success-message-box .btn {
+  background-color: #8667a6;
   color: white;
   border: none;
-  border-radius: 5px;
-  font-size: 16px;
-  text-align: center;
+  padding: 10px 20px;
+  margin-top: 20px;
   cursor: pointer;
-  transition: background-color 0.3s, transform 0.3s;
-}
-
-.btn-danger:hover {
-  background-color: #c0392b;
-}
-
-.btn-danger:active {
-  transform: scale(0.95);
+  border-radius: 5px;
 }
 </style>

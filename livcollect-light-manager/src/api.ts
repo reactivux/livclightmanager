@@ -83,9 +83,8 @@ export async function updateOrderStatus(orderId: number, status: string) {
     }
     const response = await apiClient.post(`/orders/${uuid}/status`, {
       order_id: orderId,
-      status: status,
+      status
     });
-    console.log('API Response:', response.data);
     return response.data;
   } catch (error) {
     console.error('Error updating order status:', error);
