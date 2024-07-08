@@ -9,7 +9,7 @@ export interface Product {
     CAC: number;
     store_id: number;
     category_id: number;
-    created_at: Date;
+    created_at: string;
     updated_at: Date;
     is_enabled: number;
   }
